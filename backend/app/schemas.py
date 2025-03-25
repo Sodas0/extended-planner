@@ -4,11 +4,13 @@ from datetime import datetime
 
 class UserBase(BaseModel):
     email: EmailStr
+    full_name: str
 
 class UserCreate(UserBase):
     password: str
 
-class UserLogin(UserBase):
+class UserLogin(BaseModel):
+    email: EmailStr
     password: str
 
 class User(UserBase):
@@ -19,9 +21,17 @@ class User(UserBase):
     class Config:
         from_attributes = True
 
+class Token(BaseModel):
+    access_token: str
+    token_type: str
+
+class TokenData(BaseModel):
+    email: Optional[str] = None
+
 class TaskBase(BaseModel):
     title: str
     description: Optional[str] = None
+    completed: Optional[bool] = False
 
 class TaskCreate(TaskBase):
     pass
@@ -33,10 +43,8 @@ class TaskUpdate(BaseModel):
 
 class Task(TaskBase):
     id: int
-    completed: bool
     created_at: datetime
-    updated_at: Optional[datetime] = None
-    user_id: Optional[int] = None
+    owner_id: int
 
     class Config:
         from_attributes = True

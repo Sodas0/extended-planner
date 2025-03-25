@@ -1,30 +1,47 @@
 'use client';
 
-import { List, Checkbox, Text, Button, Group, Paper, ActionIcon, Loader } from '@mantine/core';
-import { IconTrash } from '@tabler/icons-react';
 import { useState, useEffect } from 'react';
-import TaskModal from './TaskModal';
-import { api, Task } from '../services/api';
+import { Paper, TextInput, Button, Stack, Checkbox, Group, ActionIcon, Loader, Text } from '@mantine/core';
+import { IconTrash } from '@tabler/icons-react';
 import { notifications } from '@mantine/notifications';
+import { useRouter } from 'next/navigation';
+
+interface Task {
+  id: number;
+  title: string;
+  description: string | null;
+  completed: boolean;
+}
 
 export default function TaskList() {
   const [tasks, setTasks] = useState<Task[]>([]);
-  const [modalOpened, setModalOpened] = useState(false);
+  const [newTaskTitle, setNewTaskTitle] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const router = useRouter();
 
-  // Load tasks when component mounts
-  useEffect(() => {
-    loadTasks();
-  }, []);
-
-  const loadTasks = async () => {
+  const fetchTasks = async () => {
     try {
-      setLoading(true);
-      const fetchedTasks = await api.getTasks();
-      setTasks(fetchedTasks);
+      const token = localStorage.getItem('token');
+      const response = await fetch('http://localhost:8000/tasks', {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      });
+
+      if (response.status === 401) {
+        router.push('/signin');
+        return;
+      }
+
+      if (!response.ok) {
+        throw new Error('Failed to fetch tasks');
+      }
+
+      const data = await response.json();
+      setTasks(data);
       setError(null);
-    } catch (err) {
+    } catch (error) {
       setError('Failed to load tasks');
       notifications.show({
         title: 'Error',
@@ -36,17 +53,41 @@ export default function TaskList() {
     }
   };
 
-  const handleCreateTask = async (values: { title: string; description: string }) => {
+  useEffect(() => {
+    fetchTasks();
+  }, []);
+
+  const handleCreateTask = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newTaskTitle.trim()) return;
+
     try {
-      const newTask = await api.createTask(values);
-      setTasks(prevTasks => [...prevTasks, newTask]);
-      setModalOpened(false);
-      notifications.show({
-        title: 'Success',
-        message: 'Task created successfully',
-        color: 'green',
+      const token = localStorage.getItem('token');
+      const response = await fetch('http://localhost:8000/tasks', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          title: newTaskTitle,
+          description: '',
+        }),
       });
-    } catch (err) {
+
+      if (response.status === 401) {
+        router.push('/signin');
+        return;
+      }
+
+      if (!response.ok) {
+        throw new Error('Failed to create task');
+      }
+
+      const newTask = await response.json();
+      setTasks([...tasks, newTask]);
+      setNewTaskTitle('');
+    } catch (error) {
       notifications.show({
         title: 'Error',
         message: 'Failed to create task',
@@ -55,15 +96,37 @@ export default function TaskList() {
     }
   };
 
-  const toggleTask = async (taskId: number, completed: boolean) => {
+  const toggleTask = async (taskId: number) => {
     try {
-      const updatedTask = await api.updateTask(taskId, { completed: !completed });
-      setTasks(prevTasks =>
-        prevTasks.map(task =>
-          task.id === taskId ? updatedTask : task
-        )
-      );
-    } catch (err) {
+      const token = localStorage.getItem('token');
+      const taskToUpdate = tasks.find(t => t.id === taskId);
+      if (!taskToUpdate) return;
+
+      const response = await fetch(`http://localhost:8000/tasks/${taskId}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          completed: !taskToUpdate.completed,
+        }),
+      });
+
+      if (response.status === 401) {
+        router.push('/signin');
+        return;
+      }
+
+      if (!response.ok) {
+        throw new Error('Failed to update task');
+      }
+
+      const updatedTask = await response.json();
+      setTasks(tasks.map(task => 
+        task.id === taskId ? updatedTask : task
+      ));
+    } catch (error) {
       notifications.show({
         title: 'Error',
         message: 'Failed to update task',
@@ -74,14 +137,25 @@ export default function TaskList() {
 
   const deleteTask = async (taskId: number) => {
     try {
-      await api.deleteTask(taskId);
-      setTasks(prevTasks => prevTasks.filter(task => task.id !== taskId));
-      notifications.show({
-        title: 'Success',
-        message: 'Task deleted successfully',
-        color: 'green',
+      const token = localStorage.getItem('token');
+      const response = await fetch(`http://localhost:8000/tasks/${taskId}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
       });
-    } catch (err) {
+
+      if (response.status === 401) {
+        router.push('/signin');
+        return;
+      }
+
+      if (!response.ok) {
+        throw new Error('Failed to delete task');
+      }
+
+      setTasks(tasks.filter(task => task.id !== taskId));
+    } catch (error) {
       notifications.show({
         title: 'Error',
         message: 'Failed to delete task',
@@ -92,73 +166,63 @@ export default function TaskList() {
 
   if (loading) {
     return (
-      <Paper shadow="sm" p="md">
-        <Group justify="center">
-          <Loader />
-        </Group>
-      </Paper>
+      <Stack align="center" mt="xl">
+        <Loader size="lg" />
+      </Stack>
+    );
+  }
+
+  if (error) {
+    return (
+      <Text c="red" ta="center" mt="xl">
+        {error}
+      </Text>
     );
   }
 
   return (
-    <Paper shadow="sm" p="md">
-      <Group justify="space-between" mb="md">
-        <Text size="lg" fw={700}>Today's Tasks</Text>
-        <Button onClick={() => setModalOpened(true)}>Add Task</Button>
-      </Group>
+    <Stack gap="md">
+      <Paper component="form" onSubmit={handleCreateTask} p="md">
+        <Group>
+          <TextInput
+            placeholder="Add a new task"
+            value={newTaskTitle}
+            onChange={(e) => setNewTaskTitle(e.target.value)}
+            style={{ flex: 1 }}
+          />
+          <Button type="submit">Add Task</Button>
+        </Group>
+      </Paper>
 
-      {error ? (
-        <Text c="red">{error}</Text>
+      {tasks.length === 0 ? (
+        <Text c="dimmed" ta="center">No tasks yet. Add your first task above!</Text>
       ) : (
-        <List spacing="sm" listStyleType="none">
-          {tasks.length === 0 ? (
-            <Text c="dimmed">No tasks for today</Text>
-          ) : (
-            tasks.map((task) => (
-              <List.Item key={task.id} style={{ position: 'relative' }}>
-                <Group wrap="nowrap" style={{ paddingRight: '40px' }}>
-                  <Checkbox
-                    checked={task.completed}
-                    onChange={() => toggleTask(task.id, task.completed)}
-                    label={
-                      <div>
-                        <Text style={{ textDecoration: task.completed ? 'line-through' : 'none' }}>
-                          {task.title}
-                        </Text>
-                        {task.description && (
-                          <Text size="sm" c="dimmed" style={{ textDecoration: task.completed ? 'line-through' : 'none' }}>
-                            {task.description}
-                          </Text>
-                        )}
-                      </div>
-                    }
-                  />
-                </Group>
-                <ActionIcon
-                  color="red"
-                  variant="subtle"
-                  onClick={() => deleteTask(task.id)}
-                  aria-label="Delete task"
-                  style={{
-                    position: 'absolute',
-                    right: 0,
-                    top: '50%',
-                    transform: 'translateY(-50%)'
-                  }}
-                >
-                  <IconTrash size="1.125rem" />
-                </ActionIcon>
-              </List.Item>
-            ))
-          )}
-        </List>
+        tasks.map((task) => (
+          <Paper key={task.id} p="md">
+            <Group justify="space-between">
+              <Checkbox
+                label={task.title}
+                checked={task.completed}
+                onChange={() => toggleTask(task.id)}
+                styles={{
+                  label: {
+                    textDecoration: task.completed ? 'line-through' : 'none',
+                    color: task.completed ? 'var(--mantine-color-gray-7)' : 'var(--mantine-color-dark-9)',
+                  },
+                }}
+              />
+              <ActionIcon
+                variant="light"
+                color="red"
+                onClick={() => deleteTask(task.id)}
+                aria-label="Delete task"
+              >
+                <IconTrash size={16} />
+              </ActionIcon>
+            </Group>
+          </Paper>
+        ))
       )}
-
-      <TaskModal
-        opened={modalOpened}
-        onClose={() => setModalOpened(false)}
-        onSubmit={handleCreateTask}
-      />
-    </Paper>
+    </Stack>
   );
 } 

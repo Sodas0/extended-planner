@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 from typing import List, Optional
 from datetime import timedelta
 from . import models, schemas, database, auth
-from .database import engine
+from .database import engine, get_db
 
 models.Base.metadata.create_all(bind=engine)
 
@@ -25,26 +25,27 @@ app.add_middleware(
 )
 
 # User registration and authentication endpoints
-@app.post("/users/", response_model=schemas.User, status_code=status.HTTP_201_CREATED)
-def create_user(user: schemas.UserCreate, db: Session = Depends(database.get_db)):
+@app.post("/register", response_model=schemas.User)
+async def register(user: schemas.UserCreate, db: Session = Depends(get_db)):
     db_user = db.query(models.User).filter(models.User.email == user.email).first()
     if db_user:
         raise HTTPException(status_code=400, detail="Email already registered")
     
     hashed_password = auth.get_password_hash(user.password)
-    db_user = models.User(email=user.email, hashed_password=hashed_password)
+    db_user = models.User(
+        email=user.email,
+        hashed_password=hashed_password,
+        full_name=user.full_name
+    )
     db.add(db_user)
     db.commit()
     db.refresh(db_user)
     return db_user
 
-@app.post("/token")
-def login(
-    form_data: OAuth2PasswordRequestForm = Depends(),
-    db: Session = Depends(database.get_db)
-):
-    user = db.query(models.User).filter(models.User.email == form_data.username).first()
-    if not user or not auth.verify_password(form_data.password, user.hashed_password):
+@app.post("/token", response_model=schemas.Token)
+async def login(user_credentials: schemas.UserLogin, db: Session = Depends(get_db)):
+    user = db.query(models.User).filter(models.User.email == user_credentials.email).first()
+    if not user or not auth.verify_password(user_credentials.password, user.hashed_password):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Incorrect email or password",
@@ -57,33 +58,36 @@ def login(
     )
     return {"access_token": access_token, "token_type": "bearer"}
 
-@app.get("/users/me", response_model=schemas.UserWithTasks)
-def read_users_me(current_user: models.User = Depends(auth.get_current_user)):
+@app.get("/users/me", response_model=schemas.User)
+async def read_users_me(current_user: models.User = Depends(auth.get_current_user)):
+    if not current_user:
+        raise HTTPException(status_code=401, detail="Not authenticated")
     return current_user
 
 # Task endpoints with optional authentication
-@app.get("/tasks/", response_model=List[schemas.Task])
-def get_tasks(
+@app.get("/tasks", response_model=List[schemas.Task])
+async def read_tasks(
     skip: int = 0,
     limit: int = 100,
-    db: Session = Depends(database.get_db),
-    current_user: Optional[models.User] = Depends(auth.get_optional_current_user)
+    current_user: Optional[models.User] = Depends(auth.get_optional_current_user),
+    db: Session = Depends(get_db)
 ):
     if current_user:
-        tasks = db.query(models.Task).filter(models.Task.user_id == current_user.id).offset(skip).limit(limit).all()
+        tasks = db.query(models.Task).filter(models.Task.owner_id == current_user.id).offset(skip).limit(limit).all()
     else:
-        tasks = db.query(models.Task).filter(models.Task.user_id.is_(None)).offset(skip).limit(limit).all()
+        tasks = []
     return tasks
 
-@app.post("/tasks/", response_model=schemas.Task, status_code=status.HTTP_201_CREATED)
-def create_task(
+@app.post("/tasks", response_model=schemas.Task)
+async def create_task(
     task: schemas.TaskCreate,
-    db: Session = Depends(database.get_db),
-    current_user: Optional[models.User] = Depends(auth.get_optional_current_user)
+    current_user: models.User = Depends(auth.get_current_user),
+    db: Session = Depends(get_db)
 ):
-    db_task = models.Task(**task.model_dump())
-    if current_user:
-        db_task.user_id = current_user.id
+    if not current_user:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    
+    db_task = models.Task(**task.dict(), owner_id=current_user.id)
     db.add(db_task)
     db.commit()
     db.refresh(db_task)
@@ -98,7 +102,7 @@ def get_task(
     task = db.query(models.Task).filter(models.Task.id == task_id).first()
     if task is None:
         raise HTTPException(status_code=404, detail="Task not found")
-    if current_user and task.user_id != current_user.id:
+    if current_user and task.owner_id != current_user.id:
         raise HTTPException(status_code=403, detail="Not authorized to access this task")
     return task
 
@@ -107,12 +111,15 @@ def update_task(
     task_id: int,
     task_update: schemas.TaskUpdate,
     db: Session = Depends(database.get_db),
-    current_user: Optional[models.User] = Depends(auth.get_optional_current_user)
+    current_user: models.User = Depends(auth.get_current_user)
 ):
+    if not current_user:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+
     db_task = db.query(models.Task).filter(models.Task.id == task_id).first()
     if db_task is None:
         raise HTTPException(status_code=404, detail="Task not found")
-    if current_user and db_task.user_id != current_user.id:
+    if db_task.owner_id != current_user.id:
         raise HTTPException(status_code=403, detail="Not authorized to modify this task")
     
     update_data = task_update.model_dump(exclude_unset=True)
@@ -127,12 +134,15 @@ def update_task(
 def delete_task(
     task_id: int,
     db: Session = Depends(database.get_db),
-    current_user: Optional[models.User] = Depends(auth.get_optional_current_user)
+    current_user: models.User = Depends(auth.get_current_user)
 ):
+    if not current_user:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+
     db_task = db.query(models.Task).filter(models.Task.id == task_id).first()
     if db_task is None:
         raise HTTPException(status_code=404, detail="Task not found")
-    if current_user and db_task.user_id != current_user.id:
+    if db_task.owner_id != current_user.id:
         raise HTTPException(status_code=403, detail="Not authorized to delete this task")
     
     db.delete(db_task)
