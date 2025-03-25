@@ -9,10 +9,6 @@ class UserBase(BaseModel):
 class UserCreate(UserBase):
     password: str
 
-class UserLogin(BaseModel):
-    email: EmailStr
-    password: str
-
 class User(UserBase):
     id: int
     is_active: bool
@@ -31,7 +27,7 @@ class TokenData(BaseModel):
 class TaskBase(BaseModel):
     title: str
     description: Optional[str] = None
-    completed: Optional[bool] = False
+    goal_id: Optional[int] = None
 
 class TaskCreate(TaskBase):
     pass
@@ -40,17 +36,45 @@ class TaskUpdate(BaseModel):
     title: Optional[str] = None
     description: Optional[str] = None
     completed: Optional[bool] = None
+    goal_id: Optional[int] = None
 
 class Task(TaskBase):
     id: int
+    completed: bool
     created_at: datetime
+    updated_at: Optional[datetime] = None
     owner_id: int
 
     class Config:
         from_attributes = True
 
-class UserWithTasks(User):
-    tasks: List[Task] = []
+class TaskInGoal(Task):
+    class Config:
+        from_attributes = True
+
+class GoalBase(BaseModel):
+    title: str
+    description: Optional[str] = None
+    target_date: Optional[datetime] = None
+    is_pinned: bool = False
+
+class GoalCreate(GoalBase):
+    pass
+
+class GoalUpdate(BaseModel):
+    title: Optional[str] = None
+    description: Optional[str] = None
+    target_date: Optional[datetime] = None
+    is_pinned: Optional[bool] = None
+    completed: Optional[bool] = None
+
+class Goal(GoalBase):
+    id: int
+    completed: bool = False
+    created_at: datetime
+    updated_at: Optional[datetime] = None
+    owner_id: int
+    tasks: List[TaskInGoal] = []
 
     class Config:
-        from_attributes = True 
+        from_attributes = True

@@ -6,6 +6,7 @@ from typing import List, Optional
 from datetime import timedelta
 from . import models, schemas, database, auth
 from .database import engine, get_db
+from .api import tasks, users, goals
 
 models.Base.metadata.create_all(bind=engine)
 
@@ -42,10 +43,19 @@ async def register(user: schemas.UserCreate, db: Session = Depends(get_db)):
     db.refresh(db_user)
     return db_user
 
-@app.post("/token", response_model=schemas.Token)
-async def login(user_credentials: schemas.UserLogin, db: Session = Depends(get_db)):
-    user = db.query(models.User).filter(models.User.email == user_credentials.email).first()
-    if not user or not auth.verify_password(user_credentials.password, user.hashed_password):
+@app.post("/token", response_model=schemas.Token, summary="Create access token", description="OAuth2 compatible token login, get an access token for future requests")
+async def login_for_access_token(
+    form_data: OAuth2PasswordRequestForm = Depends(),
+    db: Session = Depends(get_db)
+):
+    """
+    Get an access token for future requests
+    
+    - **username**: Your email address
+    - **password**: Your password
+    """
+    user = db.query(models.User).filter(models.User.email == form_data.username).first()
+    if not user or not auth.verify_password(form_data.password, user.hashed_password):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Incorrect email or password",
@@ -148,6 +158,11 @@ def delete_task(
     db.delete(db_task)
     db.commit()
     return None
+
+# Include routers
+app.include_router(users.router)
+app.include_router(tasks.router)
+app.include_router(goals.router)
 
 @app.get("/")
 async def root():

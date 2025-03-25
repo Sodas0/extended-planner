@@ -5,6 +5,8 @@ import { TextInput, PasswordInput, Button, Paper, Title, Text, Container, Stack 
 import { notifications } from '@mantine/notifications';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import axiosInstance from '@/utils/axios';
+import { useUser } from '@/hooks/useUser';
 
 export default function SignUp() {
   const [email, setEmail] = useState('');
@@ -12,6 +14,7 @@ export default function SignUp() {
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const router = useRouter();
+  const { fetchUser } = useUser();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -19,40 +22,28 @@ export default function SignUp() {
 
     try {
       // Register the user
-      const registerResponse = await fetch('http://localhost:8000/register', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          email,
-          full_name: fullName,
-          password,
-        }),
+      await axiosInstance.post('/register', {
+        email,
+        full_name: fullName,
+        password,
       });
 
-      if (!registerResponse.ok) {
-        const data = await registerResponse.json();
-        throw new Error(data.detail || 'Failed to create account');
-      }
+      // Sign in the user
+      const formData = new FormData();
+      formData.append('username', email);  // OAuth2 expects 'username'
+      formData.append('password', password);
 
-      // Automatically sign in the user
-      const loginResponse = await fetch('http://localhost:8000/token', {
-        method: 'POST',
+      const loginResponse = await axiosInstance.post('/token', formData, {
         headers: {
-          'Content-Type': 'application/json',
+          'Content-Type': 'application/x-www-form-urlencoded',
         },
-        body: JSON.stringify({ email, password }),
       });
-
-      const loginData = await loginResponse.json();
-
-      if (!loginResponse.ok) {
-        throw new Error(loginData.detail || 'Failed to sign in');
-      }
 
       // Store the token
-      localStorage.setItem('token', loginData.access_token);
+      localStorage.setItem('token', loginResponse.data.access_token);
+
+      // Fetch user data immediately
+      await fetchUser();
       
       notifications.show({
         title: 'Success',
@@ -62,10 +53,10 @@ export default function SignUp() {
 
       // Redirect to dashboard
       router.push('/');
-    } catch (error) {
+    } catch (error: any) {
       notifications.show({
         title: 'Error',
-        message: error instanceof Error ? error.message : 'Failed to create account',
+        message: error.response?.data?.detail || 'Failed to create account',
         color: 'red',
       });
     } finally {

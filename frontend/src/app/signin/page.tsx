@@ -6,6 +6,7 @@ import { notifications } from '@mantine/notifications';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useUser } from '@/hooks/useUser';
+import axiosInstance from '@/utils/axios';
 
 export default function SignIn() {
   const [email, setEmail] = useState('');
@@ -19,22 +20,19 @@ export default function SignIn() {
     setLoading(true);
 
     try {
-      const response = await fetch('http://localhost:8000/token', {
-        method: 'POST',
+      // Create form data for OAuth2 password flow
+      const formData = new FormData();
+      formData.append('username', email);  // OAuth2 expects 'username'
+      formData.append('password', password);
+
+      const response = await axiosInstance.post('/token', formData, {
         headers: {
-          'Content-Type': 'application/json',
+          'Content-Type': 'application/x-www-form-urlencoded',
         },
-        body: JSON.stringify({ email, password }),
       });
 
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.detail || 'Failed to sign in');
-      }
-
       // Store the token
-      localStorage.setItem('token', data.access_token);
+      localStorage.setItem('token', response.data.access_token);
       
       // Fetch user data immediately
       await fetchUser();
@@ -47,10 +45,10 @@ export default function SignIn() {
 
       // Redirect to dashboard
       router.push('/');
-    } catch (error) {
+    } catch (error: any) {
       notifications.show({
         title: 'Error',
-        message: error instanceof Error ? error.message : 'Failed to sign in',
+        message: error.response?.data?.detail || 'Failed to sign in',
         color: 'red',
       });
     } finally {

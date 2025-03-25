@@ -1,8 +1,8 @@
 'use client';
 
 import { useEffect } from 'react';
-import { AppShell, Group, Button, Text, Avatar, Menu, UnstyledButton } from '@mantine/core';
-import { IconChevronDown } from '@tabler/icons-react';
+import { AppShell, Group, Button, Text, Avatar, Menu, UnstyledButton, NavLink } from '@mantine/core';
+import { IconChevronDown, IconHome, IconTarget } from '@tabler/icons-react';
 import { useRouter, usePathname } from 'next/navigation';
 import Link from 'next/link';
 import { useUser } from '@/hooks/useUser';
@@ -38,6 +38,10 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   return (
     <AppShell
       header={{ height: 60 }}
+      navbar={!isAuthPage && user ? {
+        width: 300,
+        breakpoint: 'sm',
+      } : undefined}
       padding="md"
       styles={{
         main: {
@@ -106,6 +110,25 @@ export default function Layout({ children }: { children: React.ReactNode }) {
           )}
         </Group>
       </AppShell.Header>
+
+      {!isAuthPage && user && (
+        <AppShell.Navbar p="md">
+          <NavLink
+            label="Dashboard"
+            leftSection={<IconHome size={16} />}
+            component={Link}
+            href="/"
+            active={pathname === '/'}
+          />
+          <NavLink
+            label="Goals"
+            leftSection={<IconTarget size={16} />}
+            component={Link}
+            href="/goals"
+            active={pathname === '/goals'}
+          />
+        </AppShell.Navbar>
+      )}
 
       <AppShell.Main>
         {children}

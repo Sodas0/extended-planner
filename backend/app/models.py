@@ -15,6 +15,7 @@ class User(Base):
     is_active = Column(Boolean, default=True)
 
     tasks = relationship("Task", back_populates="owner")
+    goals = relationship("Goal", back_populates="owner")
 
 class Task(Base):
     __tablename__ = "tasks"
@@ -26,5 +27,23 @@ class Task(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
     owner_id = Column(Integer, ForeignKey("users.id"))
+    goal_id = Column(Integer, ForeignKey("goals.id"), nullable=True)
 
-    owner = relationship("User", back_populates="tasks") 
+    owner = relationship("User", back_populates="tasks")
+    goal = relationship("Goal", back_populates="tasks")
+
+class Goal(Base):
+    __tablename__ = "goals"
+
+    id = Column(Integer, primary_key=True, index=True)
+    title = Column(String, index=True)
+    description = Column(String)
+    target_date = Column(DateTime(timezone=True))
+    completed = Column(Boolean, default=False)
+    is_pinned = Column(Boolean, default=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+    owner_id = Column(Integer, ForeignKey("users.id"))
+
+    owner = relationship("User", back_populates="goals")
+    tasks = relationship("Task", back_populates="goal") 
