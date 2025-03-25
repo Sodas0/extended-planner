@@ -1,6 +1,6 @@
 'use client';
 
-import { AppShell, Text, Group } from '@mantine/core';
+import { AppShell, Text, Group, Container } from '@mantine/core';
 import { ReactNode } from 'react';
 
 interface LayoutProps {
@@ -12,15 +12,25 @@ export default function Layout({ children }: LayoutProps) {
     <AppShell
       header={{ height: 60 }}
       padding="md"
+      styles={{
+        main: {
+          paddingLeft: 'var(--mantine-spacing-md)',
+          paddingRight: 'var(--mantine-spacing-md)',
+        },
+      }}
     >
       <AppShell.Header>
-        <Group h="100%" px="md">
-          <Text size="lg" fw={700}>Extended Planner</Text>
-        </Group>
+        <Container size="lg" h="100%">
+          <Group h="100%" px="md" justify="space-between">
+            <Text size="lg" fw={700}>Extended Planner</Text>
+          </Group>
+        </Container>
       </AppShell.Header>
 
       <AppShell.Main>
-        {children}
+        <Container size="lg">
+          {children}
+        </Container>
       </AppShell.Main>
     </AppShell>
   );
