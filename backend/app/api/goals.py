@@ -72,7 +72,7 @@ def read_goal(
 @router.put("/{goal_id}", response_model=schemas.Goal)
 def update_goal(
     goal_id: int,
-    goal: schemas.GoalCreate,
+    goal: schemas.GoalUpdate,
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user)
 ):
@@ -90,7 +90,9 @@ def update_goal(
     if db_goal is None:
         raise HTTPException(status_code=404, detail="Goal not found")
     
-    for key, value in goal.dict().items():
+    # Filter out None values to avoid overwriting with None
+    update_data = {key: value for key, value in goal.dict().items() if value is not None}
+    for key, value in update_data.items():
         setattr(db_goal, key, value)
     
     db.commit()

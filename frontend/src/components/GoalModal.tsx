@@ -24,6 +24,7 @@ interface GoalModalProps {
     title: string;
     description?: string;
     is_pinned: boolean;
+    completed?: boolean;
   };
   defaultIsPinned?: boolean;
 }
@@ -32,6 +33,7 @@ export default function GoalModal({ opened, onClose, onGoalAdded, initialData, d
   const [title, setTitle] = useState(initialData?.title || '');
   const [description, setDescription] = useState(initialData?.description || '')
   const [isPinned, setIsPinned] = useState(initialData?.is_pinned || defaultIsPinned);
+  const [isCompleted, setIsCompleted] = useState(initialData?.completed || false);
   const [loading, setLoading] = useState(false);
 
   const handleSubmit = async () => {
@@ -52,6 +54,7 @@ export default function GoalModal({ opened, onClose, onGoalAdded, initialData, d
         title: title.trim(),
         description: description.trim() || null,
         is_pinned: isPinned,
+        completed: isCompleted,
       };
 
       await axiosInstance[method](endpoint, data);
@@ -67,6 +70,7 @@ export default function GoalModal({ opened, onClose, onGoalAdded, initialData, d
       setTitle('');
       setDescription('');   
       setIsPinned(false);
+      setIsCompleted(false);
     } catch (error) {
       notifications.show({
         title: 'Error',
@@ -112,6 +116,15 @@ export default function GoalModal({ opened, onClose, onGoalAdded, initialData, d
             onChange={(e) => setIsPinned(e.currentTarget.checked)}
             styles={{ label: { color: 'black', fontWeight: 500 } }}
           />
+
+          {initialData && (
+            <Switch
+              label="Mark as completed"
+              checked={isCompleted}
+              onChange={(e) => setIsCompleted(e.currentTarget.checked)}
+              styles={{ label: { color: 'black', fontWeight: 500 } }}
+            />
+          )}
 
           <Group justify="flex-end" mt="md">
             <Button variant="light" onClick={onClose}>Cancel</Button>
