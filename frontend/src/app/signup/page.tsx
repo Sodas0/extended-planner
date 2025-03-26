@@ -79,14 +79,14 @@ export default function SignUp() {
           <Stack>
             <TextInput
               label="Email"
-              placeholder="you@example.com"
+              placeholder="email@domain.com"
               required
               value={email}
               onChange={(e) => setEmail(e.target.value)}
             />
             <TextInput
               label="Full Name"
-              placeholder="John Doe"
+              placeholder="Soham Das"
               required
               value={fullName}
               onChange={(e) => setFullName(e.target.value)}

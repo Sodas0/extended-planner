@@ -1,9 +1,10 @@
 'use client';
 
-import { useState } from 'react';
-import { TextInput, PasswordInput, Button, Paper, Title, Text, Container, Stack } from '@mantine/core';
+import { useState, useEffect } from 'react';
+import { TextInput, PasswordInput, Button, Paper, Title, Text, Container, Stack, Alert } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
 import { useRouter } from 'next/navigation';
+import { IconAlertCircle } from '@tabler/icons-react';
 import Link from 'next/link';
 import { useUser } from '@/hooks/useUser';
 import axiosInstance from '@/utils/axios';
@@ -12,17 +13,30 @@ export default function SignIn() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
   const router = useRouter();
   const { fetchUser } = useUser();
 
+  // Clear any notifications when component mounts or unmounts
+  useEffect(() => {
+    return () => {
+      notifications.clean();
+    };
+  }, []);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    
     setLoading(true);
+    setError('');
+    
+    // Clean any existing notifications
+    notifications.clean();
 
     try {
       // Create form data for OAuth2 password flow
       const formData = new FormData();
-      formData.append('username', email);  // OAuth2 expects 'username'
+      formData.append('username', email);
       formData.append('password', password);
 
       const response = await axiosInstance.post('/token', formData, {
@@ -34,7 +48,7 @@ export default function SignIn() {
       // Store the token
       localStorage.setItem('token', response.data.access_token);
       
-      // Fetch user data immediately
+      // Fetch user data immediately after successful login
       await fetchUser();
       
       notifications.show({
@@ -46,15 +60,41 @@ export default function SignIn() {
       // Redirect to dashboard
       router.push('/');
     } catch (error: any) {
-      notifications.show({
-        title: 'Error',
-        message: error.response?.data?.detail || 'Failed to sign in',
-        color: 'red',
-      });
+      // For authentication errors (401), show both alert and notification
+      if (error.response?.status === 401) {
+        const errorMessage = 'Invalid email or password. Please try again.';
+        setError(errorMessage);
+        
+        // Also show a persistent notification that won't auto-close
+        notifications.show({
+          title: 'Authentication Error',
+          message: errorMessage,
+          color: 'red',
+          icon: <IconAlertCircle />,
+          autoClose: false,
+          withCloseButton: true,
+        });
+      } else {
+        const errorMessage = error.response?.data?.detail || 'Failed to sign in';
+        setError(errorMessage);
+        
+        // Also show a persistent notification that won't auto-close
+        notifications.show({
+          title: 'Error',
+          message: errorMessage,
+          color: 'red',
+          icon: <IconAlertCircle />,
+          autoClose: false,
+          withCloseButton: true,
+        });
+      }
     } finally {
       setLoading(false);
     }
   };
+
+  // We don't auto-clear the error anymore when fields change
+  // This gives users time to read the error message
 
   return (
     <Container size={420} my={40}>
@@ -69,6 +109,17 @@ export default function SignIn() {
       <Paper withBorder shadow="md" p={30} mt={30} radius="md">
         <form onSubmit={handleSubmit}>
           <Stack>
+            {error && (
+              <Alert 
+                color="red" 
+                title="Authentication Error" 
+                icon={<IconAlertCircle />}
+                withCloseButton
+                onClose={() => setError('')}
+              >
+                {error}
+              </Alert>
+            )}
             <TextInput
               label="Email"
               placeholder="you@example.com"

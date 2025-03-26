@@ -135,7 +135,7 @@ export default function ClientLayout({
       theme={theme} 
       forceColorScheme={colorMode}
     >
-      <Notifications position="top-right" />
+      <Notifications position="top-right" autoClose={6000} />
       <Layout>{children}</Layout>
     </MantineProvider>
   );

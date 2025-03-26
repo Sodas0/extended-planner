@@ -11,11 +11,11 @@ from .database import get_db
 # Configuration
 SECRET_KEY = "your-secret-key-here"  # Change this to a secure secret key in production
 ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = 30
+ACCESS_TOKEN_EXPIRE_MINUTES = 600
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 oauth2_scheme = OAuth2PasswordBearer(
-    tokenUrl="token",  # Remove the leading slash
+    tokenUrl="token", 
     scheme_name="OAuth2PasswordBearer",
     auto_error=True
 )

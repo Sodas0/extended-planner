@@ -25,7 +25,10 @@ instance.interceptors.request.use(
 instance.interceptors.response.use(
   (response) => response,
   async (error) => {
-    if (error.response?.status === 401) {
+    // Don't redirect to signin if already on signin page
+    const isSigninPage = typeof window !== 'undefined' && window.location.pathname === '/signin';
+    
+    if (error.response?.status === 401 && !isSigninPage) {
       // Handle unauthorized error (e.g., redirect to login)
       localStorage.removeItem('token');
       window.location.href = '/signin';
