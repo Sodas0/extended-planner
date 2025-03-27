@@ -219,7 +219,7 @@ export default function TaskList({ onTaskUpdate }: TaskListProps) {
         ) : (
           tasks.map((task) => (
             <Paper key={task.id} withBorder p="sm">
-              <Group justify="space-between" wrap="nowrap">
+              <Group justify="space-between" wrap="nowrap" align="center">
                 <Checkbox
                   checked={task.completed}
                   onChange={() => toggleTask(task.id)}
@@ -229,9 +229,12 @@ export default function TaskList({ onTaskUpdate }: TaskListProps) {
                       textDecoration: task.completed ? 'line-through' : 'none',
                       color: task.completed ? 'var(--mantine-color-gray-6)' : undefined,
                     },
+                    root: {
+                      alignItems: 'center',
+                    },
                   }}
                 />
-                <Group gap="xs">
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                   <Select
                     placeholder="No goal"
                     value={task.goal_id?.toString() || null}
@@ -242,19 +245,21 @@ export default function TaskList({ onTaskUpdate }: TaskListProps) {
                     }))}
                     clearable
                     size="xs"
-                    style={{ width: 150 }}
+                    style={{ width: '150px' }}
                     fw={500}
                     variant="light"
                     color="blue"
                   />
-                  <ActionIcon
-                    variant="light"
-                    color="red"
-                    onClick={() => deleteTask(task.id)}
-                  >
-                    <IconTrash size={16} />
-                  </ActionIcon>
-                </Group>
+                  <div style={{ width: '34px', display: 'flex', justifyContent: 'center' }}>
+                    <ActionIcon
+                      variant="light"
+                      color="red"
+                      onClick={() => deleteTask(task.id)}
+                    >
+                      <IconTrash size={16} />
+                    </ActionIcon>
+                  </div>
+                </div>
               </Group>
             </Paper>
           ))
