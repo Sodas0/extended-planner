@@ -70,15 +70,62 @@ export default function TaskList({ onTaskUpdate }: TaskListProps) {
       const taskToUpdate = tasks.find(t => t.id === taskId);
       if (!taskToUpdate) return;
 
-      const response = await axiosInstance.patch(`/tasks/${taskId}`, {
-        completed: !taskToUpdate.completed,
+      // Check if we're completing or uncompleting
+      const isCompleting = !taskToUpdate.completed;
+      console.log(`Toggling task ${taskId} from ${taskToUpdate.completed} to ${isCompleting}`);
+      
+      // Get today's date in YYYY-MM-DD format
+      const today = new Date().toISOString().split('T')[0];
+      console.log(`Current local date: ${today}`);
+      
+      // Optimistically update UI
+      setTasks(prevTasks => 
+        prevTasks.map(task => 
+          task.id === taskId ? {...task, completed: isCompleting} : task
+        )
+      );
+      
+      // Make the API call to update the server with today's date
+      const response = await axiosInstance.patch(`/tasks/${taskId}?today=${today}`, {
+        completed: isCompleting,
       });
 
-      setTasks(tasks.map(task => 
-        task.id === taskId ? response.data : task
-      ));
-      onTaskUpdate?.();
+      console.log('Task update response:', response.data);
+      
+      // Update with server response data
+      setTasks(prevTasks => 
+        prevTasks.map(task => 
+          task.id === taskId ? response.data : task
+        )
+      );
+      
+      // IMPORTANT: For task completion, also directly increment the activity counter
+      // This ensures the activity counter is updated properly regardless of other issues
+      if (isCompleting) {
+        try {
+          console.log('Task completed - directly incrementing activity counter');
+          // Pass today parameter to ensure consistent date handling
+          const activityResponse = await axiosInstance.post(`/users/me/activity/increment?today=${today}`);
+          console.log('Activity increment response:', activityResponse.data);
+        } catch (activityError) {
+          console.error('Failed to increment activity counter:', activityError);
+        }
+        
+        // Always call onTaskUpdate after server confirms the update
+        console.log('Server confirmed task completion - ensuring activity graph updates');
+        setTimeout(() => {
+          onTaskUpdate?.();
+        }, 300);
+      }
     } catch (error) {
+      console.error('Error updating task:', error);
+      // Revert optimistic update on error
+      setTasks(prevTasks => 
+        prevTasks.map(task => 
+          task.id === taskId ? tasks.find(t => t.id === taskId)! : task
+        )
+      );
+      
       notifications.show({
         title: 'Error',
         message: 'Failed to update task',
@@ -196,6 +243,9 @@ export default function TaskList({ onTaskUpdate }: TaskListProps) {
                     clearable
                     size="xs"
                     style={{ width: 150 }}
+                    fw={500}
+                    variant="light"
+                    color="blue"
                   />
                   <ActionIcon
                     variant="light"

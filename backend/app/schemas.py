@@ -1,6 +1,6 @@
 from pydantic import BaseModel, EmailStr
 from typing import Optional, List
-from datetime import datetime
+from datetime import datetime, date
 
 class UserBase(BaseModel):
     email: EmailStr
@@ -75,6 +75,21 @@ class Goal(GoalBase):
     updated_at: Optional[datetime] = None
     owner_id: int
     tasks: List[TaskInGoal] = []
+
+    class Config:
+        from_attributes = True
+
+class UserActivityBase(BaseModel):
+    date: date
+    count: int = 1
+
+class UserActivityCreate(UserActivityBase):
+    pass
+
+class UserActivity(UserActivityBase):
+    id: int
+    user_id: int
+    created_at: datetime
 
     class Config:
         from_attributes = True

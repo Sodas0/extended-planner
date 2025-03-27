@@ -1,22 +1,102 @@
-import { Paper, Text, Group, Box, Tooltip } from '@mantine/core';
-import { useState, useEffect } from 'react';
+import { Paper, Text, Group, Box, Tooltip, Skeleton } from '@mantine/core';
+import { useState, useEffect, useRef } from 'react';
 import { useTheme } from '@/hooks/useTheme';
+import axiosInstance from '@/utils/axios';
+import { notifications } from '@mantine/notifications';
 
-// This interface will be used when implementing real data fetching
+// Define the interface for activity data
 interface ActivityData {
   date: string;
   count: number;
 }
 
-export default function ActivityGraph() {
+interface ActivityGraphProps {
+  refreshTrigger?: number;
+}
+
+export default function ActivityGraph({ refreshTrigger = 0 }: ActivityGraphProps) {
   const [activityData, setActivityData] = useState<Record<string, number>>({});
   const [loading, setLoading] = useState(true);
   const { themeConfig } = useTheme();
   
+  // Simplified refresh logic - always fetch when refreshTrigger changes
   useEffect(() => {
-    // Generate random activity data for demonstration
-    generateRandomActivityData();
-  }, []);
+    console.log(`ActivityGraph: Effect triggered with refreshTrigger=${refreshTrigger}`);
+    fetchActivityData();
+  }, [refreshTrigger]); 
+
+  const fetchActivityData = async () => {
+    try {
+      // Cache busting with unique timestamp
+      const timestamp = Date.now();
+      console.log(`Fetching activity data (${timestamp})`);
+      
+      // Check if there's a token
+      const token = localStorage.getItem('token');
+      console.log('Has authentication token:', !!token);
+      
+      // Get today's date in YYYY-MM-DD format for consistent comparison
+      const today = new Date().toISOString().split('T')[0];
+      console.log('Current local date (YYYY-MM-DD):', today);
+      
+      // Add timestamp and today parameter to ensure we get fresh data with correct date handling
+      // This helps backend correctly identify today's date regardless of timezone issues
+      const response = await axiosInstance.get(`/users/me/activity?_=${timestamp}&today=${today}`);
+      console.log('Activity data response status:', response.status);
+      console.log('Activity data received:', response.data);
+      
+      if (response.data && typeof response.data === 'object') {
+        // Count how many days have activity
+        const activeDays = Object.entries(response.data).filter(([_, count]) => (count as number) > 0);
+        console.log(`Found ${activeDays.length} days with activity`);
+        
+        // Check if today is in the data
+        console.log(`Today (${today}) in data:`, today in response.data);
+        console.log(`Today's activity count:`, response.data[today] || 0);
+        
+        // Remove any cached data and directly use the response
+        setActivityData({...response.data});
+        
+        // Log all dates with activity
+        if (activeDays.length > 0) {
+          console.log("Days with activity:");
+          activeDays.forEach(([date, count]) => {
+            console.log(`  ${date}: ${count} tasks`);
+          });
+        } else {
+          console.log("No days with activity found!");
+        }
+        
+        // Log the 5 most recent days
+        const recentDates = Object.keys(response.data).sort().slice(-5);
+        console.log('Recent dates activity:', recentDates.map(date => ({
+          date,
+          count: response.data[date]
+        })));
+      } else {
+        console.error('Invalid activity data format:', response.data);
+        notifications.show({
+          title: 'Error',
+          message: 'Invalid activity data format',
+          color: 'red',
+        });
+        generateRandomActivityData();
+      }
+    } catch (error: any) {
+      console.error('Error fetching activity data:', error);
+      if (error.response) {
+        console.error('Error details:', error.response.status, error.response.data);
+      }
+      notifications.show({
+        title: 'Error',
+        message: 'Failed to load activity data',
+        color: 'red',
+      });
+      generateRandomActivityData();
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const generateRandomActivityData = () => {
     const data: Record<string, number> = {};
@@ -34,11 +114,14 @@ export default function ActivityGraph() {
     }
     
     setActivityData(data);
-    setLoading(false);
   };
 
   const getActivityColor = (count: number) => {
-    return themeConfig.colors.activity[count as keyof typeof themeConfig.colors.activity];
+    // Normalize count to be between 0 and 4 for coloring
+    const normalizedCount = Math.min(Math.max(count, 0), 4);
+    // Get color index (0-4)
+    const colorIndex = count === 0 ? 0 : Math.ceil(normalizedCount);
+    return themeConfig.colors.activity[colorIndex as keyof typeof themeConfig.colors.activity];
   };
 
   const renderGraph = () => {
@@ -47,6 +130,9 @@ export default function ActivityGraph() {
     
     // Generate dates for the last 365 days (most recent last)
     const today = new Date();
+    const todayStr = today.toISOString().split('T')[0];
+    console.log(`Today's date: ${todayStr}, activity count: ${activityData[todayStr] || 0}`);
+    
     const dates = Array.from({ length: 365 }, (_, i) => {
       const date = new Date(today);
       date.setDate(date.getDate() - 364 + i);
@@ -114,7 +200,7 @@ export default function ActivityGraph() {
                       return (
                         <Tooltip 
                           key={dateStr}
-                          label={`${count} contributions on ${formattedDate}`}
+                          label={`${count} ${count === 1 ? 'Task Completed' : 'Tasks Completed'} on ${formattedDate}`}
                           position="top"
                           withArrow
                         >
@@ -140,34 +226,30 @@ export default function ActivityGraph() {
         
         {/* Legend */}
         <Group justify="center" gap="xs" mt="lg">
-          <Text size="sm" fw={500}>Less</Text>
+          <Text size="sm" fw={500}>Fewer</Text>
           <Box w={cellSize} h={cellSize} style={{ backgroundColor: getActivityColor(0), borderRadius: '2px' }} />
           <Box w={cellSize} h={cellSize} style={{ backgroundColor: getActivityColor(1), borderRadius: '2px' }} />
           <Box w={cellSize} h={cellSize} style={{ backgroundColor: getActivityColor(2), borderRadius: '2px' }} />
           <Box w={cellSize} h={cellSize} style={{ backgroundColor: getActivityColor(3), borderRadius: '2px' }} />
           <Box w={cellSize} h={cellSize} style={{ backgroundColor: getActivityColor(4), borderRadius: '2px' }} />
-          <Text size="sm" fw={500}>More</Text>
+          <Text size="sm" fw={500}>More Tasks Completed</Text>
         </Group>
       </Box>
     );
   };
 
   return (
-    <Paper p="md" radius="md" withBorder>
-      <Group justify="space-between" mb="lg">
-        <Text size="lg" fw={500}>Contribution Activity</Text>
-      </Group>
-      
+    <>
       {loading ? (
-        <Text>Loading activity data...</Text>
-      ) : (
         <Box>
+          <Skeleton height={120} radius="md" mb="sm" />
+          <Skeleton height={30} radius="md" width="60%" mx="auto" />
+        </Box>
+      ) : (
+        <Box key={`activity-graph-${refreshTrigger}`}>
           {renderGraph()}
-          
-          {/* TODO: Implement fetching and displaying actual contribution data */}
-          {/* This can be connected to backend endpoints that track user activity */}
         </Box>
       )}
-    </Paper>
+    </>
   );
 } 

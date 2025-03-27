@@ -7,9 +7,11 @@ import { useRouter, usePathname } from 'next/navigation';
 import Link from 'next/link';
 import { useUser } from '@/hooks/useUser';
 import SettingsModal from './SettingsModal';
+import { useTheme } from '@/hooks/useTheme';
 
 export default function Layout({ children }: { children: React.ReactNode }) {
   const { user, loading, fetchUser } = useUser();
+  const { setColorScheme } = useTheme();
   const router = useRouter();
   const pathname = usePathname();
   const [settingsOpened, setSettingsOpened] = useState(false);
@@ -29,8 +31,24 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   }, [fetchUser]);
 
   const handleSignOut = () => {
+    // First remove auth token
     localStorage.removeItem('token');
+    
+    // Clear the user state
     useUser.getState().setUser(null);
+    
+    // Reset theme properly
+    // 1. First set the theme in the state store to trigger UI update
+    setColorScheme('light');
+    
+    // 2. Then remove the persisted theme data completely
+    localStorage.removeItem('theme-storage');
+    
+    // 3. Set the document attribute directly for immediate visual change
+    document.documentElement.setAttribute('data-mantine-color-scheme', 'light');
+    document.documentElement.style.colorScheme = 'light';
+    
+    // Navigate to sign-in page
     router.push('/signin');
   };
 

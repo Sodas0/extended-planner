@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Boolean, DateTime, Text, ForeignKey
+from sqlalchemy import Column, Integer, String, Boolean, DateTime, Text, ForeignKey, Date
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
@@ -16,6 +16,7 @@ class User(Base):
 
     tasks = relationship("Task", back_populates="owner")
     goals = relationship("Goal", back_populates="owner")
+    activities = relationship("UserActivity", back_populates="user")
 
 class Task(Base):
     __tablename__ = "tasks"
@@ -46,4 +47,15 @@ class Goal(Base):
     owner_id = Column(Integer, ForeignKey("users.id"))
 
     owner = relationship("User", back_populates="goals")
-    tasks = relationship("Task", back_populates="goal") 
+    tasks = relationship("Task", back_populates="goal")
+
+class UserActivity(Base):
+    __tablename__ = "user_activities"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    date = Column(Date, index=True)
+    count = Column(Integer, default=0)
+    user_id = Column(Integer, ForeignKey("users.id"))
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    
+    user = relationship("User", back_populates="activities") 

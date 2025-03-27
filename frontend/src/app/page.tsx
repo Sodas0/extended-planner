@@ -1,14 +1,14 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { Container, Title, Grid, Paper, Text, Group, Button, ActionIcon, Stack, Checkbox } from '@mantine/core';
 import { IconPlus, IconTrash, IconPinnedFilled, IconPinned, IconEdit } from '@tabler/icons-react';
 import TaskList from '@/components/TaskList';
 import GoalModal from '@/components/GoalModal';
 import ActivityGraph from '@/components/ActivityGraph';
-import { useEffect } from 'react';
 import { notifications } from '@mantine/notifications';
 import axiosInstance from '@/utils/axios';
+import { debounce } from 'lodash';
 
 interface Goal {
   id: number;
@@ -28,6 +28,20 @@ export default function Home() {
   const [pinnedGoals, setPinnedGoals] = useState<Goal[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedGoal, setSelectedGoal] = useState<Goal | null>(null);
+  const [activityRefreshTrigger, setActivityRefreshTrigger] = useState(0);
+  const [graphUpdating, setGraphUpdating] = useState(false);
+
+  // Create a debounced version of the activity refresh trigger update
+  // This prevents multiple rapid updates when completing multiple tasks quickly
+  const debouncedRefreshTrigger = useCallback(
+    debounce(() => {
+      console.log('Debounced refresh trigger fired');
+      // Use a more random value to ensure React detects the state change
+      const randomIncrement = Math.floor(Math.random() * 1000) + 1;
+      setActivityRefreshTrigger(prev => prev + randomIncrement);
+    }, 300), // Reduced debounce delay for faster response
+    [] // Only create this function once
+  );
 
   const fetchPinnedGoals = async () => {
     try {
@@ -167,6 +181,27 @@ export default function Home() {
     }
   };
 
+  // Callback for when tasks are updated
+  const handleTaskUpdate = useCallback(() => {
+    // Use the debounced version to prevent UI jank from rapid updates
+    console.log('Task update detected, scheduling refreshTrigger update');
+    
+    // Indicate that the graph is updating
+    setGraphUpdating(true);
+    
+    // Force immediate refresh for better UX
+    // This will make the graph refresh immediately after a task is completed
+    const randomValue = Date.now(); // Use timestamp for unique value
+    setActivityRefreshTrigger(randomValue);
+    
+    // Schedule another refresh after a delay in case the first one didn't catch all updates
+    setTimeout(() => {
+      debouncedRefreshTrigger();
+      // Reset the updating state after a reasonable delay
+      setTimeout(() => setGraphUpdating(false), 2000);
+    }, 1000);
+  }, [debouncedRefreshTrigger]);
+
   // Group pinned goals by completion status
   const activePinnedGoals = pinnedGoals.filter(goal => !goal.completed);
   const completedPinnedGoals = pinnedGoals.filter(goal => goal.completed);
@@ -182,7 +217,32 @@ export default function Home() {
       <Grid>
         {/* Activity Graph */}
         <Grid.Col span={12}>
-          <ActivityGraph />
+          <Paper p="md" radius="md" withBorder>
+            <Group justify="space-between" mb="lg">
+              <Text size="lg" fw={500}>Activity</Text>
+              <Group>
+                {graphUpdating && (
+                  <Text size="sm" c="dimmed">Updating...</Text>
+                )}
+                <Button 
+                  variant="light" 
+                  size="xs" 
+                  onClick={() => {
+                    console.log("Manual refresh triggered");
+                    setGraphUpdating(true);
+                    // Force refresh with a new random value
+                    const newValue = Date.now();
+                    setActivityRefreshTrigger(newValue);
+                    // Reset updating state after a delay
+                    setTimeout(() => setGraphUpdating(false), 2000);
+                  }}
+                >
+                  Refresh Activity
+                </Button>
+              </Group>
+            </Group>
+            <ActivityGraph refreshTrigger={activityRefreshTrigger} />
+          </Paper>
         </Grid.Col>
 
         {/* Pinned Goals */}
@@ -199,59 +259,54 @@ export default function Home() {
                 Add Goal
               </Button>
             </Group>
-
-            {activePinnedGoals.length === 0 && completedPinnedGoals.length === 0 ? (
-              <Text c="dimmed" ta="center" py="md">No pinned goals yet</Text>
+            
+            {loading ? (
+              <Text>Loading goals...</Text>
             ) : (
               <Stack gap="xs">
-                {activePinnedGoals.length > 0 && (
-                  <>
-                    {activePinnedGoals.map((goal) => (
-                      <Paper key={goal.id} withBorder p="xs">
-                        <Group justify="space-between" wrap="nowrap">
-                          <Group wrap="nowrap">
-                            <Checkbox
-                              checked={goal.completed}
-                              onChange={() => handleToggleComplete(goal.id, goal.completed)}
-                              aria-label={`Mark ${goal.title} as ${goal.completed ? 'incomplete' : 'completed'}`}
-                            />
-                            <div>
-                              <Text fw={500} style={{ textDecoration: goal.completed ? 'line-through' : 'none' }}>
-                                {goal.title}
+                {activePinnedGoals.length === 0 ? (
+                  <Text c="dimmed" ta="center">No pinned goals yet. Pin a goal to see it here!</Text>
+                ) : (
+                  activePinnedGoals.map((goal) => (
+                    <Paper key={goal.id} withBorder p="xs">
+                      <Group justify="space-between" wrap="nowrap">
+                        <Group wrap="nowrap">
+                          <Checkbox
+                            checked={goal.completed}
+                            onChange={() => handleToggleComplete(goal.id, goal.completed)}
+                            aria-label={`Mark ${goal.title} as ${goal.completed ? 'incomplete' : 'completed'}`}
+                          />
+                          <div>
+                            <Text fw={500}>
+                              {goal.title}
+                            </Text>
+                            {goal.description && (
+                              <Text size="xs" c="dimmed" lineClamp={1}>
+                                {goal.description}
                               </Text>
-                              {goal.description && (
-                                <Text size="xs" c="dimmed" lineClamp={1} style={{ textDecoration: goal.completed ? 'line-through' : 'none' }}>
-                                  {goal.description}
-                                </Text>
-                              )}
-                              {goal.tasks.length > 0 && (
-                                <Text size="xs" c="dimmed">
-                                  {goal.tasks.filter(t => t.completed).length}/{goal.tasks.length} tasks completed
-                                </Text>
-                              )}
-                            </div>
-                          </Group>
-                          <Group wrap="nowrap" gap="xs">
-                            <ActionIcon
-                              variant="light"
-                              onClick={() => handleOpenModal(goal)}
-                              size="sm"
-                            >
-                              <IconEdit size={16} />
-                            </ActionIcon>
-                            <ActionIcon
-                              variant={goal.is_pinned ? 'filled' : 'light'}
-                              color={goal.is_pinned ? 'blue' : 'gray'}
-                              onClick={() => handleTogglePin(goal.id)}
-                              size="sm"
-                            >
-                              <IconPinnedFilled size={16} />
-                            </ActionIcon>
-                          </Group>
+                            )}
+                          </div>
                         </Group>
-                      </Paper>
-                    ))}
-                  </>
+                        <Group wrap="nowrap" gap="xs">
+                          <ActionIcon
+                            variant="light"
+                            onClick={() => handleOpenModal(goal)}
+                            size="sm"
+                          >
+                            <IconEdit size={16} />
+                          </ActionIcon>
+                          <ActionIcon
+                            variant="light"
+                            color={goal.is_pinned ? 'blue' : 'gray'}
+                            onClick={() => handleTogglePin(goal.id)}
+                            size="sm"
+                          >
+                            {goal.is_pinned ? <IconPinnedFilled size={16} /> : <IconPinned size={16} />}
+                          </ActionIcon>
+                        </Group>
+                      </Group>
+                    </Paper>
+                  ))
                 )}
 
                 {completedPinnedGoals.length > 0 && (
@@ -267,11 +322,11 @@ export default function Home() {
                               aria-label={`Mark ${goal.title} as ${goal.completed ? 'incomplete' : 'completed'}`}
                             />
                             <div>
-                              <Text fw={500} style={{ textDecoration: 'line-through' }}>
+                              <Text fw={500}>
                                 {goal.title}
                               </Text>
                               {goal.description && (
-                                <Text size="xs" c="dimmed" lineClamp={1} style={{ textDecoration: 'line-through' }}>
+                                <Text size="xs" c="dimmed" lineClamp={1}>
                                   {goal.description}
                                 </Text>
                               )}
@@ -284,6 +339,14 @@ export default function Home() {
                               size="sm"
                             >
                               <IconEdit size={16} />
+                            </ActionIcon>
+                            <ActionIcon
+                              variant="light"
+                              color={goal.is_pinned ? 'blue' : 'gray'}
+                              onClick={() => handleTogglePin(goal.id)}
+                              size="sm"
+                            >
+                              {goal.is_pinned ? <IconPinnedFilled size={16} /> : <IconPinned size={16} />}
                             </ActionIcon>
                           </Group>
                         </Group>
@@ -298,7 +361,7 @@ export default function Home() {
 
         {/* Tasks Section */}
         <Grid.Col span={{ base: 12, md: 6 }}>
-          <TaskList />
+          <TaskList onTaskUpdate={handleTaskUpdate} />
         </Grid.Col>
       </Grid>
 

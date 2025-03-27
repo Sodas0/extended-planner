@@ -92,10 +92,9 @@ export default function SettingsModal({ opened, onClose }: SettingsModalProps) {
               option: {
                 color: themeConfig.colors.text.primary,
                 '&:hover': {
-                  backgroundColor: 
-                    colorScheme === 'dark' 
-                      ? 'rgba(255, 255, 255, 0.1)' 
-                      : 'rgba(0, 0, 0, 0.05)'
+                  backgroundColor: colorScheme === 'dark' 
+                    ? 'rgba(255, 255, 255, 0.1)' 
+                    : 'rgba(0, 0, 0, 0.05)'
                 }
               }
             }}

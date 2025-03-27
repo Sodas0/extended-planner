@@ -4,7 +4,7 @@ import { MantineProvider, MantineThemeOverride, type MantineTheme } from '@manti
 import { Notifications } from '@mantine/notifications';
 import Layout from './Layout';
 import { useTheme } from '@/hooks/useTheme';
-import { useMemo } from 'react';
+import { useMemo, useEffect } from 'react';
 
 // Type for Mantine's color array (10 elements)
 type MantineColorArray = [string, string, string, string, string, string, string, string, string, string];
@@ -14,7 +14,27 @@ export default function ClientLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const { colorScheme, themeConfig } = useTheme();
+  const { colorScheme, themeConfig, setColorScheme } = useTheme();
+  
+  // Load theme from localStorage on first render if available
+  useEffect(() => {
+    // We only do this once on initial client-side render
+    // This helps ensure we have the right theme after hydration
+    try {
+      const themeData = localStorage.getItem('theme-storage');
+      if (themeData) {
+        const parsedData = JSON.parse(themeData);
+        if (parsedData.state && parsedData.state.colorScheme) {
+          // No need to set if it's already the same
+          if (parsedData.state.colorScheme !== colorScheme) {
+            setColorScheme(parsedData.state.colorScheme);
+          }
+        }
+      }
+    } catch (e) {
+      console.error('Error checking theme from localStorage:', e);
+    }
+  }, []);
   
   // Create a theme configuration based on our centralized theme store
   const theme = useMemo(() => {
@@ -134,6 +154,7 @@ export default function ClientLayout({
     <MantineProvider 
       theme={theme} 
       forceColorScheme={colorMode}
+      defaultColorScheme={colorMode}
     >
       <Notifications position="top-right" autoClose={6000} />
       <Layout>{children}</Layout>
