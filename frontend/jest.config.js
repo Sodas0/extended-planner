@@ -8,9 +8,10 @@ module.exports = {
   },
   setupFilesAfterEnv: ['<rootDir>/jest.setup.js'],
   transform: {
-    // Handle TypeScript files
+    // Handle TypeScript files with JSX
     '^.+\\.(ts|tsx)$': ['ts-jest', {
       tsconfig: 'tsconfig.json',
+      jsx: 'react',
     }],
   },
   coveragePathIgnorePatterns: [
@@ -18,4 +19,7 @@ module.exports = {
     '/.next/',
     '^.+\\.module\\.(css|sass|scss)$',
   ],
+  testMatch: ['**/__tests__/**/*.[jt]s?(x)', '**/?(*.)+(spec|test).[jt]s?(x)'],
+  // Exclude the d.ts file from being treated as a test
+  testPathIgnorePatterns: ['/node_modules/', '/.next/', '/__tests__/jest.d.ts'],
 }; 
